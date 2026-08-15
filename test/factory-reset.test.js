@@ -10,6 +10,8 @@ test("factory reset only clears state and workspace under the Railway volume", (
 
   assert.match(handler, /target !== dataRoot/);
   assert.match(handler, /target\.startsWith\(`\$\{dataRoot\}\$\{path\.sep\}`\)/);
+  assert.match(handler, /proc\.once\("exit"/);
+  assert.match(handler, /proc\.kill\("SIGKILL"\)/);
   assert.match(handler, /fs\.rmSync\(target, \{ recursive: true, force: true/);
   assert.match(handler, /fs\.mkdirSync\(STATE_DIR/);
   assert.match(handler, /fs\.mkdirSync\(WORKSPACE_DIR/);

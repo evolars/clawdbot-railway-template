@@ -1204,8 +1204,17 @@ app.post("/setup/api/factory-reset", requireSetupAuth, async (_req, res) => {
 
   try {
     if (gatewayProc) {
-      try { gatewayProc.kill("SIGTERM"); } catch {}
-      await sleep(750);
+      const proc = gatewayProc;
+      if (proc.exitCode === null && proc.signalCode === null) {
+        const exited = new Promise((resolve) => proc.once("exit", () => resolve(true)));
+        try { proc.kill("SIGTERM"); } catch {}
+        let stopped = await Promise.race([exited, sleep(5_000).then(() => false)]);
+        if (!stopped) {
+          try { proc.kill("SIGKILL"); } catch {}
+          stopped = await Promise.race([exited, sleep(2_000).then(() => false)]);
+        }
+        if (!stopped) throw new Error("Gateway did not stop before factory reset.");
+      }
       gatewayProc = null;
     }
 
