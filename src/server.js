@@ -95,6 +95,18 @@ function persistControlUiAllowedOrigins() {
     config.gateway ??= {};
     config.gateway.controlUi ??= {};
     config.gateway.controlUi.allowedOrigins = origins;
+    config.gateway.remote ??= {};
+    config.gateway.remote.url = origins[0].replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
+    config.plugins ??= {};
+    config.plugins.entries ??= {};
+    config.plugins.entries["device-pair"] = {
+      ...(config.plugins.entries["device-pair"] || {}),
+      enabled: true,
+      config: {
+        ...(config.plugins.entries["device-pair"]?.config || {}),
+        publicUrl: origins[0],
+      },
+    };
     fs.writeFileSync(p, `${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
     return true;
   } catch (err) {
