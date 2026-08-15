@@ -8,6 +8,7 @@ test("factory reset only clears state and workspace under the Railway volume", (
   assert.ok(idx >= 0);
   const handler = src.slice(idx, idx + 1_800);
 
+  assert.match(handler, /await startupReady/);
   assert.match(handler, /target !== dataRoot/);
   assert.match(handler, /target\.startsWith\(`\$\{dataRoot\}\$\{path\.sep\}`\)/);
   assert.match(handler, /proc\.once\("exit"/);

@@ -1214,6 +1214,10 @@ app.post("/setup/api/factory-reset", requireSetupAuth, async (_req, res) => {
   }
 
   try {
+    // Startup can still be running OpenClaw config commands just after a deploy.
+    // Wait for it before deleting files so it cannot recreate the old config.
+    await startupReady;
+
     if (gatewayProc) {
       const proc = gatewayProc;
       if (proc.exitCode === null && proc.signalCode === null) {
@@ -1440,7 +1444,9 @@ app.use(async (req, res) => {
   return proxy.web(req, res, { target: GATEWAY_TARGET });
 });
 
-const server = app.listen(PORT, "0.0.0.0", async () => {
+let startupReady = Promise.resolve();
+const server = app.listen(PORT, "0.0.0.0", () => {
+  startupReady = (async () => {
   console.log(`[wrapper] listening on :${PORT}`);
   console.log(`[wrapper] state dir: ${STATE_DIR}`);
   console.log(`[wrapper] workspace dir: ${WORKSPACE_DIR}`);
@@ -1506,6 +1512,9 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
       console.error(`[wrapper] gateway failed to start at boot: ${String(err)}`);
     }
   }
+  })().catch((err) => {
+    console.error(`[wrapper] startup initialization failed: ${String(err)}`);
+  });
 });
 
 server.on("upgrade", async (req, socket, head) => {
