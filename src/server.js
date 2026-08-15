@@ -85,6 +85,24 @@ function controlUiAllowedOrigins() {
   }
 }
 
+function persistControlUiAllowedOrigins() {
+  const origins = controlUiAllowedOrigins();
+  if (!origins.length) return false;
+
+  try {
+    const p = configPath();
+    const config = JSON.parse(fs.readFileSync(p, "utf8"));
+    config.gateway ??= {};
+    config.gateway.controlUi ??= {};
+    config.gateway.controlUi.allowedOrigins = origins;
+    fs.writeFileSync(p, `${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    return true;
+  } catch (err) {
+    console.warn(`[setup] unable to persist Control UI origins: ${String(err)}`);
+    return false;
+  }
+}
+
 // Always run the built-from-source CLI entry directly to avoid PATH/global-install mismatches.
 const OPENCLAW_ENTRY = process.env.OPENCLAW_ENTRY?.trim() || "/openclaw/dist/entry.js";
 const OPENCLAW_NODE = process.env.OPENCLAW_NODE?.trim() || "node";
@@ -776,13 +794,7 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       clawArgs(["config", "set", "--json", "gateway.trustedProxies", JSON.stringify(["127.0.0.1"]) ]),
     );
 
-    const allowedOrigins = controlUiAllowedOrigins();
-    if (allowedOrigins.length) {
-      await runCmd(
-        OPENCLAW_NODE,
-        clawArgs(["config", "set", "--json", "gateway.controlUi.allowedOrigins", JSON.stringify(allowedOrigins)]),
-      );
-    }
+    persistControlUiAllowedOrigins();
 
     // Optional: configure a custom OpenAI-compatible provider (base URL) for advanced users.
     if (payload.customProviderId?.trim() && payload.customProviderBaseUrl?.trim()) {
