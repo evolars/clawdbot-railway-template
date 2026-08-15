@@ -1187,6 +1187,40 @@ app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
   }
 });
 
+// Factory reset: erase every persisted OpenClaw file while retaining Railway's
+// service, domain, volume and environment variables. This is deliberately a
+// separate endpoint from /setup/api/reset, which only removes configuration.
+app.post("/setup/api/factory-reset", requireSetupAuth, async (_req, res) => {
+  const dataRoot = path.resolve("/data");
+  const targets = [...new Set([STATE_DIR, WORKSPACE_DIR].map((target) => path.resolve(target)))];
+  const isSafeTarget = (target) => target !== dataRoot && target.startsWith(`${dataRoot}${path.sep}`);
+
+  if (!targets.every(isSafeTarget)) {
+    return res.status(400).json({
+      ok: false,
+      error: "Factory reset is only supported when state and workspace are under /data.",
+    });
+  }
+
+  try {
+    if (gatewayProc) {
+      try { gatewayProc.kill("SIGTERM"); } catch {}
+      await sleep(750);
+      gatewayProc = null;
+    }
+
+    for (const target of targets) {
+      fs.rmSync(target, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+    }
+    fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(WORKSPACE_DIR, { recursive: true, mode: 0o700 });
+
+    return res.json({ ok: true, message: "Factory reset complete. Run setup to create a new agent." });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 app.get("/setup/export", requireSetupAuth, async (_req, res) => {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
