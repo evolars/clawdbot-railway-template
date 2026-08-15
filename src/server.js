@@ -164,6 +164,9 @@ function isConfigured() {
 
 let gatewayProc = null;
 let gatewayStarting = null;
+let whatsappLoginProc = null;
+let whatsappLoginOutput = "";
+let whatsappLoginExit = null;
 
 // Debug breadcrumbs for common Railway failures (502 / "Application failed to respond").
 let lastGatewayError = null;
@@ -173,6 +176,33 @@ let lastDoctorAt = null;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function startWhatsAppLogin() {
+  if (whatsappLoginProc) return false;
+
+  whatsappLoginOutput = "";
+  whatsappLoginExit = null;
+  whatsappLoginProc = childProcess.spawn(OPENCLAW_NODE, clawArgs(["channels", "login", "--channel", "whatsapp"]), {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      OPENCLAW_STATE_DIR: STATE_DIR,
+      OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
+    },
+  });
+
+  const capture = (chunk) => {
+    whatsappLoginOutput = `${whatsappLoginOutput}${chunk.toString("utf8")}`.slice(-100_000);
+  };
+  whatsappLoginProc.stdout?.on("data", capture);
+  whatsappLoginProc.stderr?.on("data", capture);
+  whatsappLoginProc.on("error", (err) => capture(`\n[spawn error] ${String(err)}\n`));
+  whatsappLoginProc.on("close", (code, signal) => {
+    whatsappLoginExit = { code, signal };
+    whatsappLoginProc = null;
+  });
+  return true;
 }
 
 async function waitForGatewayReady(opts = {}) {
@@ -447,6 +477,9 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
         <option value="openclaw.devices.approve">openclaw devices approve &lt;requestId&gt;</option>
         <option value="openclaw.plugins.list">openclaw plugins list</option>
         <option value="openclaw.plugins.enable">openclaw plugins enable &lt;name&gt;</option>
+        <option value="openclaw.whatsapp.install">Install official WhatsApp plugin</option>
+        <option value="openclaw.whatsapp.login">Start WhatsApp QR login</option>
+        <option value="openclaw.whatsapp.login.status">Read WhatsApp QR login status</option>
       </select>
       <input id="consoleArg" placeholder="Optional arg (e.g. 200, gateway.port)" style="flex: 1" />
       <button id="consoleRun" style="background:#0f172a">Run</button>
@@ -1030,6 +1063,9 @@ const ALLOWED_CONSOLE_COMMANDS = new Set([
   // Plugin management
   "openclaw.plugins.list",
   "openclaw.plugins.enable",
+  "openclaw.whatsapp.install",
+  "openclaw.whatsapp.login",
+  "openclaw.whatsapp.login.status",
 ]);
 
 app.post("/setup/api/console/run", requireSetupAuth, async (req, res) => {
@@ -1129,6 +1165,23 @@ app.post("/setup/api/console/run", requireSetupAuth, async (req, res) => {
       if (!/^[A-Za-z0-9_-]+$/.test(name)) return res.status(400).json({ ok: false, error: "Invalid plugin name" });
       const r = await runCmd(OPENCLAW_NODE, clawArgs(["plugins", "enable", name]));
       return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
+    }
+
+    if (cmd === "openclaw.whatsapp.install") {
+      const r = await runCmd(OPENCLAW_NODE, clawArgs(["plugins", "install", "clawhub:@openclaw/whatsapp"]));
+      return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
+    }
+    if (cmd === "openclaw.whatsapp.login") {
+      const started = startWhatsAppLogin();
+      return res.json({ ok: true, started, output: started ? "WhatsApp QR login started. Refresh login status to read the QR output.\n" : "WhatsApp QR login is already running.\n" });
+    }
+    if (cmd === "openclaw.whatsapp.login.status") {
+      return res.json({
+        ok: true,
+        running: Boolean(whatsappLoginProc),
+        exit: whatsappLoginExit,
+        output: redactSecrets(whatsappLoginOutput),
+      });
     }
 
     return res.status(400).json({ ok: false, error: "Unhandled command" });
