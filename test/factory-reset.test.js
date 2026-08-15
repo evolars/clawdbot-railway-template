@@ -15,4 +15,15 @@ test("factory reset only clears state and workspace under the Railway volume", (
   assert.match(handler, /fs\.rmSync\(target, \{ recursive: true, force: true/);
   assert.match(handler, /fs\.mkdirSync\(STATE_DIR/);
   assert.match(handler, /fs\.mkdirSync\(WORKSPACE_DIR/);
+  assert.match(handler, /Factory reset did not remove the configuration file/);
+});
+
+test("setup status does not initialize OpenClaw before onboarding", () => {
+  const src = fs.readFileSync(new URL("../src/server.js", import.meta.url), "utf8");
+  const idx = src.indexOf('app.get("/setup/api/status"');
+  assert.ok(idx >= 0);
+  const handler = src.slice(idx, idx + 900);
+
+  assert.match(handler, /if \(!configured\)/);
+  assert.match(handler, /openclawVersion: null/);
 });

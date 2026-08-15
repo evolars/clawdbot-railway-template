@@ -579,11 +579,22 @@ const AUTH_GROUPS = [
 ];
 
 app.get("/setup/api/status", requireSetupAuth, async (_req, res) => {
+  const configured = isConfigured();
+  if (!configured) {
+    return res.json({
+      configured: false,
+      gatewayTarget: GATEWAY_TARGET,
+      openclawVersion: null,
+      channelsAddHelp: "",
+      authGroups: AUTH_GROUPS,
+    });
+  }
+
   const version = await runCmd(OPENCLAW_NODE, clawArgs(["--version"]));
   const channelsHelp = await runCmd(OPENCLAW_NODE, clawArgs(["channels", "add", "--help"]));
 
   res.json({
-    configured: isConfigured(),
+    configured,
     gatewayTarget: GATEWAY_TARGET,
     openclawVersion: version.output.trim(),
     channelsAddHelp: channelsHelp.output,
@@ -1223,8 +1234,9 @@ app.post("/setup/api/factory-reset", requireSetupAuth, async (_req, res) => {
     }
     fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
     fs.mkdirSync(WORKSPACE_DIR, { recursive: true, mode: 0o700 });
+    if (isConfigured()) throw new Error("Factory reset did not remove the configuration file.");
 
-    return res.json({ ok: true, message: "Factory reset complete. Run setup to create a new agent." });
+    return res.json({ ok: true, configured: false, message: "Factory reset complete. Run setup to create a new agent." });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
   }
