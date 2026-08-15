@@ -983,6 +983,8 @@ const ALLOWED_CONSOLE_COMMANDS = new Set([
   // Device management (for fixing "disconnected (1008): pairing required")
   "openclaw.devices.list",
   "openclaw.devices.approve",
+  "openclaw.nodes.pending",
+  "openclaw.nodes.approve",
 
   // Plugin management
   "openclaw.plugins.list",
@@ -1057,6 +1059,21 @@ app.post("/setup/api/console/run", requireSetupAuth, async (req, res) => {
         return res.status(400).json({ ok: false, error: "Invalid device request ID" });
       }
       const r = await runCmd(OPENCLAW_NODE, clawArgs(["devices", "approve", requestId]));
+      return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
+    }
+    if (cmd === "openclaw.nodes.pending") {
+      const r = await runCmd(OPENCLAW_NODE, clawArgs(["nodes", "pending"]));
+      return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
+    }
+    if (cmd === "openclaw.nodes.approve") {
+      const requestId = String(arg || "").trim();
+      if (!requestId) {
+        return res.status(400).json({ ok: false, error: "Missing node request ID" });
+      }
+      if (!/^[A-Za-z0-9_-]+$/.test(requestId)) {
+        return res.status(400).json({ ok: false, error: "Invalid node request ID" });
+      }
+      const r = await runCmd(OPENCLAW_NODE, clawArgs(["nodes", "approve", requestId]));
       return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
     }
 

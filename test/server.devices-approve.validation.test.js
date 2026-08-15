@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 function validateRequestId(raw) {
   const requestId = String(raw || "").trim();
@@ -22,4 +23,12 @@ test("devices approve requestId validation: rejects weird chars", () => {
 test("devices approve requestId validation: allows typical ids", () => {
   assert.equal(validateRequestId("abc123").ok, true);
   assert.equal(validateRequestId("req_123-ABC").ok, true);
+});
+
+test("setup console supports listing and approving node pairing requests", () => {
+  const src = fs.readFileSync(new URL("../src/server.js", import.meta.url), "utf8");
+  assert.match(src, /"openclaw\.nodes\.pending"/);
+  assert.match(src, /"openclaw\.nodes\.approve"/);
+  assert.match(src, /clawArgs\(\["nodes", "pending"\]\)/);
+  assert.match(src, /clawArgs\(\["nodes", "approve", requestId\]\)/);
 });
